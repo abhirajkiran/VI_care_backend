@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: vicare-hospital-backend
+    runtime: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt && PYTHONPATH=. python scripts/init_db.py"
+    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: PROJECT_NAME
+        value: "Vicare Healthcare API"
+      - key: VERSION
+        value: "1.0.0"
+      - key: API_V1_STR
+        value: "/api/v1"
+      - key: DEBUG
+        value: "false"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: BACKEND_CORS_ORIGINS
+        value: '["*"]'
+      - key: POSTGRES_PORT
+        value: "5432"
+      - key: POSTGRES_SERVER
+        sync: false
+      - key: POSTGRES_USER
+        sync: false
+      - key: POSTGRES_PASSWORD
+        sync: false
+      - key: POSTGRES_DB
+        sync: false
