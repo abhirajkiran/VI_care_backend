@@ -41,8 +41,11 @@ def get_password_hash(password: str) -> str:
 
 async def get_current_user_id(token: Optional[str] = Depends(oauth2_scheme)) -> str:
     if not token:
-        # Fallback to default patient in mock/dev testing if unauthenticated
-        return "patient_01"
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication token required. Please sign in.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id: str = payload.get("sub")

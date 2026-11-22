@@ -255,25 +255,17 @@ async def login_credentials(payload: LoginRequest, db: AsyncSession = Depends(ge
         )
 
     # 5. Patient login (phone or email lookup)
+    ident = payload.identifier.strip().lower()
     stmt = select(Patient).where(
-        or_(Patient.phone == payload.identifier, Patient.email == payload.identifier)
+        or_(Patient.phone == payload.identifier.strip(), Patient.email.ilike(ident), Patient.uhid.ilike(ident))
     )
     result = await db.execute(stmt)
     patient = result.scalar_one_or_none()
 
     if not patient:
-        stmt = select(Patient).where(Patient.id == "patient_01")
-        result = await db.execute(stmt)
-        patient = result.scalar_one_or_none()
-
-    if not patient:
-        patient = Patient(
-            id="patient_01",
-            uhid="VIC-PAT-00109",
-            name="Rahul Sharma",
-            phone=payload.identifier if "+" in payload.identifier or payload.identifier.isdigit() else "+91 98765 43210",
-            email=payload.identifier if "@" in payload.identifier else "patient@vicare.com",
-            address="Kochi, Kerala",
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Account not found. Please check your credentials or create a new account.",
         )
 
     access_token = create_access_token(patient.id)
@@ -286,27 +278,35 @@ async def login_credentials(payload: LoginRequest, db: AsyncSession = Depends(ge
         token_type="bearer",
         is_new_user=False,
         patient_id=patient.id,
-        uhid=patient.uhid or "VIC-PAT-00109",
+        uhid=patient.uhid or "PT-10001",
         user=_build_user_dict(patient),
     )
 
 
 @router.post("/google", response_model=TokenResponse)
-async def google_login(db: AsyncSession = Depends(get_db)):
+async def google_login(payload: Optional[Dict[str, Any]] = None, db: AsyncSession = Depends(get_db)):
     """Google One-Tap sign in for Mobile App."""
-    stmt = select(Patient).where(Patient.id == "patient_01")
+    email = "google.patient@vicare.internal"
+    name = "Google User"
+    if payload and isinstance(payload, dict):
+        email = (payload.get("email") or email).strip().lower()
+        name = (payload.get("name") or name).strip()
+
+    stmt = select(Patient).where(Patient.email == email)
     result = await db.execute(stmt)
     patient = result.scalar_one_or_none()
 
     if not patient:
+        patient_id = f"pat_{uuid.uuid4().hex[:8]}"
+        uhid = f"PT-{uuid.uuid4().int % 90000 + 10000}"
         patient = Patient(
-            id="patient_01",
-            uhid="PT-10001",
-            name="Aravind Krishnan",
-            email="aravind.krishnan@gmail.com",
-            phone="+91 98765 43210",
-            gender="Male",
-            blood_group="O+",
+            id=patient_id,
+            uhid=uhid,
+            name=name,
+            email=email,
+            phone="+91 98765 00000",
+            gender="Not Specified",
+            blood_group="Unknown",
         )
         db.add(patient)
         await db.commit()

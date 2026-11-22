@@ -48,16 +48,7 @@ async def get_my_profile(
     result = await db.execute(stmt)
     patient = result.scalar_one_or_none()
     if not patient:
-        # Fallback to patient_01 for demo testing if not yet created
-        stmt = (
-            select(Patient)
-            .options(selectinload(Patient.family_members))
-            .where(Patient.id == "patient_01")
-        )
-        result = await db.execute(stmt)
-        patient = result.scalar_one_or_none()
-        if not patient:
-            raise HTTPException(status_code=404, detail="Patient profile not found")
+        raise HTTPException(status_code=404, detail="Patient profile not found in database")
 
     return PatientResponse.model_validate(patient)
 
@@ -77,16 +68,7 @@ async def update_my_profile(
     result = await db.execute(stmt)
     patient = result.scalar_one_or_none()
     if not patient:
-        # Check patient_01
-        stmt = (
-            select(Patient)
-            .options(selectinload(Patient.family_members))
-            .where(Patient.id == "patient_01")
-        )
-        result = await db.execute(stmt)
-        patient = result.scalar_one_or_none()
-        if not patient:
-            raise HTTPException(status_code=404, detail="Patient profile not found")
+        raise HTTPException(status_code=404, detail="Patient profile not found in database")
 
     update_data = payload.model_dump(exclude_unset=True)
     for field, val in update_data.items():
