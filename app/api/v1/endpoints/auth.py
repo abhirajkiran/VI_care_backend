@@ -97,6 +97,65 @@ async def verify_otp(payload: VerifyOtpRequest, db: AsyncSession = Depends(get_d
     )
 
 
+@router.post("/register", response_model=TokenResponse)
+async def register_patient(payload: Dict[str, Any], db: AsyncSession = Depends(get_db)):
+    """Registers a new patient with email/phone/password and returns JWT access tokens."""
+    name = (payload.get("name") or "New Patient").strip()
+    email = (payload.get("email") or "").strip().lower()
+    phone = (payload.get("phone") or f"+91 {uuid.uuid4().int % 9000000000 + 1000000000}").strip()
+
+    # Check if patient exists
+    conditions = []
+    if email:
+        conditions.append(Patient.email == email)
+    if phone:
+        conditions.append(Patient.phone == phone)
+
+    patient = None
+    if conditions:
+        stmt = select(Patient).where(or_(*conditions))
+        result = await db.execute(stmt)
+        patient = result.scalar_one_or_none()
+
+    is_new = False
+    if not patient:
+        is_new = True
+        patient_id = f"pat_{uuid.uuid4().hex[:8]}"
+        uhid = f"PT-{uuid.uuid4().int % 90000 + 10000}"
+        patient = Patient(
+            id=patient_id,
+            uhid=uhid,
+            name=name,
+            phone=phone,
+            email=email if email else f"{phone}@vicare.internal",
+            date_of_birth=date(1995, 1, 1),
+            gender="Not Specified",
+            blood_group="Unknown",
+        )
+        db.add(patient)
+        await db.commit()
+        await db.refresh(patient)
+    else:
+        if name:
+            patient.name = name
+        await db.commit()
+        await db.refresh(patient)
+
+    access_token = create_access_token(patient.id)
+    refresh_token = create_refresh_token(patient.id)
+
+    return TokenResponse(
+        token=access_token,
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer",
+        is_new_user=is_new,
+        patient_id=patient.id,
+        uhid=patient.uhid,
+        user=_build_user_dict(patient),
+    )
+
+
 @router.post("/login", response_model=TokenResponse)
 async def login_credentials(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
     """Password/Identifier login for web portal and mobile app."""
